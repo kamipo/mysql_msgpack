@@ -1,6 +1,6 @@
 extern "C" {
 #include <mysql/mysql.h>
-//#include <string.h>
+#include <string.h>
 }
 #include <string>
 #include <sstream>
@@ -48,16 +48,16 @@ char* msgpack_get(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned long*
   try {
     msgpack::unpacked msg;
     msgpack::unpack(&msg, args->args[0], args->lengths[0]);
-    msgpack::object* obj = &msg.get();
+    msgpack::object obj = msg.get();
 
     for (unsigned i = 1; i < args->arg_count; ++i) {
       switch (args->arg_type[i]) {
       case INT_RESULT:
       {
         size_t idx = (size_t)*(long long*)args->args[i];
-        if (obj->type == msgpack::type::ARRAY
-          && idx < obj->via.array.size) {
-          obj = obj->via.array.ptr + idx;
+        if (obj.type == msgpack::type::ARRAY
+          && idx < obj.via.array.size) {
+          obj = obj.via.array.ptr[idx];
         } else {
           goto NOTFOUND;
         }
@@ -65,14 +65,15 @@ char* msgpack_get(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned long*
       }
       case STRING_RESULT:
       {
-        if (obj->type == msgpack::type::MAP
-          && obj->via.map.size != 0) {
-          msgpack::object_kv* p(obj->via.map.ptr);
-          msgpack::object_kv* const pend(obj->via.map.ptr + obj->via.map.size);
+        if (obj.type == msgpack::type::MAP
+          && obj.via.map.size != 0) {
+          msgpack::object_kv* p(obj.via.map.ptr);
+          msgpack::object_kv* const pend(obj.via.map.ptr + obj.via.map.size);
           for (; p < pend; ++p) {
             if (p->key.type == msgpack::type::RAW
-              && strcmp(p->key.via.raw.ptr, (const char *)args->args[i]) == 0) {
-              obj = &(p->val);
+              && p->key.via.raw.size == args->lengths[i]
+              && strncmp(p->key.via.raw.ptr, args->args[i], args->lengths[i]) == 0) {
+              obj = p->val;
               break;
             }
           }
@@ -95,7 +96,7 @@ char* msgpack_get(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned long*
     std::string* out = (std::string*)(void*)initid->ptr;
     {
       std::ostringstream ss;
-      ss << *obj;
+      ss << obj;
       *out = ss.str();
     }
     *length = out->size();
