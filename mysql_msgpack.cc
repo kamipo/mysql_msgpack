@@ -125,11 +125,24 @@ char* msgpack_get(UDF_INIT* initid, UDF_ARGS* args, char* result, unsigned long*
     }
 
     std::string* out = (std::string*)(void*)initid->ptr;
-    {
-      std::ostringstream ss;
+    std::ostringstream ss;
+
+    switch (obj.type) {
+    case msgpack::type::NIL:
+      *length  = 0;
+      *is_null = 1;
+      return NULL;
+    case msgpack::type::BOOLEAN:
+      ss << (obj.via.boolean ? 1 : 0);
+      break;
+    case msgpack::type::RAW:
+      ss.write(obj.via.raw.ptr, obj.via.raw.size);
+      break;
+    default:
       ss << obj;
-      *out = ss.str();
     }
+
+    *out = ss.str();
     *length = out->size();
     return &(*out)[0];
   } catch (msgpack::unpack_error& e) {
